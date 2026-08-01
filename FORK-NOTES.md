@@ -6,6 +6,52 @@ Calendar…), which upstream Nordic does not touch.
 
 Install: `./install-nordic.sh` — undo with `./install-nordic.sh --uninstall`.
 
+## Requirements
+
+| Need | For what |
+|---|---|
+| `git` | already have it if you cloned this |
+| Node / nvm | the script builds the compat layer with `npx sass` |
+| `sudo` | **only** for the GNOME Shell theme and Flatpak — see below |
+
+**GTK3, GTK4 and libadwaita theming need no root at all.** Everything lands in
+`~/.themes` and `~/.config/gtk-4.0`. If you skip sudo entirely, every normal
+app is themed; you just don't get the Shell (top bar / overview / menus) or
+Flatpak.
+
+The script prompts for sudo itself where it needs it — there is nothing to run
+beforehand. Run it from a terminal that can actually prompt; if sudo fails it
+degrades gracefully, themes everything else, and tells you what it skipped.
+
+The two things sudo covers:
+
+```sh
+sudo apt install -y gnome-shell-extensions   # provides the User Themes extension
+sudo flatpak override --filesystem=$HOME/.themes:ro
+sudo flatpak override --env=GTK_THEME=Nordic
+```
+
+**Ordering wrinkle for the Shell theme.** If `gnome-shell-extensions` was not
+already installed, GNOME Shell will not see the User Themes extension until the
+session restarts. So on a fresh machine it goes:
+
+1. `./install-nordic.sh` — installs the package, themes GTK, warns that the
+   shell theme could not be set yet
+2. log out and back in
+3. `./install-nordic.sh` again — now the extension enables and the shell theme
+   applies
+
+Step 3 is cheap and idempotent. If you would rather not re-run the whole thing,
+after the re-login this is all that is left:
+
+```sh
+gnome-extensions enable user-theme@gnome-shell-extensions.gcampax.github.com
+gsettings set org.gnome.shell.extensions.user-theme name Nordic
+```
+
+Flatpak has no such ordering constraint — those overrides can be applied at any
+time and take effect the next time the app starts.
+
 ---
 
 ## The problem
