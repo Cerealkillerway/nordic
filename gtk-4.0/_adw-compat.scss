@@ -1,0 +1,234 @@
+// ===========================================================================
+//  libadwaita compatibility layer
+// ===========================================================================
+//
+//  WHY THIS FILE EXISTS
+//  --------------------
+//  Nordic's `_colors-public.scss` only exports the legacy GTK named colors
+//  (theme_bg_color, theme_fg_color, ...). libadwaita does not read any of
+//  those. Since libadwaita 1.6 every widget rule resolves its colour through
+//  a CSS custom property:
+//
+//      .background { background-color: var(--window-bg-color); }
+//
+//  and libadwaita seeds those custom properties from its own named colours:
+//
+//      :root { --window-bg-color: @window_bg_color; }
+//
+//  So there are two ways in, and this file uses BOTH:
+//
+//    1. `@define-color window_bg_color ...`  — feeds libadwaita's own
+//       :root mapping, and keeps third-party apps that still read named
+//       colours working.
+//    2. `:root { --window-bg-color: ... }`   — overrides the custom property
+//       directly, in case a future libadwaita stops going through the named
+//       colour. Belt and braces; costs nothing.
+//
+//  Both are emitted UNCONDITIONALLY, i.e. outside any
+//  `@media (prefers-color-scheme: ...)` block. libadwaita puts its dark values
+//  inside such a query; a media query adds no specificity, and this file is
+//  loaded at GTK_STYLE_PROVIDER_PRIORITY_USER (800) which outranks the theme
+//  provider (600). So these win in both light and dark mode — which is what we
+//  want, because Nordic is a dark-only theme.
+//
+//  Verified against libadwaita 1.8.0 / GTK 4.20.1 (Ubuntu 25.10, GNOME 49).
+//  The token list was extracted from the library itself:
+//      gresource extract /usr/lib/x86_64-linux-gnu/libadwaita-1.so.0 \
+//          /org/gnome/Adwaita/styles/default.css
+//  Re-run that after a libadwaita major bump to catch added/renamed tokens.
+// ===========================================================================
+
+
+// --- helper: window_bg_color <-> --window-bg-color -------------------------
+@function adw-underscore($string) {
+  $index: str-index($string, '-');
+  @if $index {
+    @return str-slice($string, 1, $index - 1) + '_' +
+            adw-underscore(str-slice($string, $index + 1));
+  }
+  @return $string;
+}
+
+
+// ---------------------------------------------------------------------------
+//  Nord assignments
+//  Kept as named variables so the map below reads as intent, not hex soup.
+//  These follow the choices already made in gtk-3.0/_colors.scss so the GTK3
+//  and GTK4 halves of the theme agree.
+// ---------------------------------------------------------------------------
+
+// Surfaces
+$adw_window_bg:             $bg_color;                          // nord2
+$adw_window_fg:             $fg_color;                          // nord4
+$adw_view_bg:               $base_color;                        // nord1
+$adw_view_fg:               $text_color;
+$adw_headerbar_bg:          $headerbar_color;
+$adw_headerbar_fg:          $headerbar_fg_color;
+$adw_sidebar_bg:            $_sidebar_color;                    // nord0
+$adw_sidebar_fg:            $fg_color;
+$adw_secondary_sidebar_bg:  mix($_sidebar_color, $base_color, 60%);
+$adw_card_bg:               lighten($base_color, 4%);
+$adw_dialog_bg:             $menu_color;
+$adw_popover_bg:            $popover_bg_color;
+$adw_thumbnail_bg:          lighten($base_color, 6%);
+$adw_overview_bg:           darken($base_color, 3%);
+
+// Accent — Nordic uses the Frost family for selection
+$adw_accent_bg:             $selected_bg_color;                 // nord7
+$adw_accent_fg:             $selected_fg_color;                 // nord0
+$adw_accent_standalone:     lighten($selected_bg_color, 6%);
+
+// Semantic states. libadwaita wants a *_bg_color (filled, needs a readable
+// foreground) and a standalone *_color (used as text on a normal background,
+// so it must stay light against Nord's dark surfaces).
+$adw_success_bg:            $teal;                              // nord14
+$adw_success_fg:            $nord0;
+$adw_success_standalone:    lighten($teal, 6%);
+
+$adw_warning_bg:            $yellow;                            // nord13
+$adw_warning_fg:            $nord0;
+$adw_warning_standalone:    $yellow;
+
+$adw_error_bg:              $red;                               // nord11
+$adw_error_fg:              $nord6;
+$adw_error_standalone:      lighten($red, 12%);
+
+$adw_destructive_bg:        $red;
+$adw_destructive_fg:        $nord6;
+$adw_destructive_standalone: lighten($red, 12%);
+
+// Shades / separators
+$adw_shade:                 rgba(0, 0, 0, 0.25);
+$adw_headerbar_shade:       rgba(0, 0, 0, 0.36);
+$adw_headerbar_darker_shade: rgba(0, 0, 0, 0.9);
+$adw_scrollbar_outline:     rgba(0, 0, 0, 0.5);
+
+
+// ---------------------------------------------------------------------------
+//  The token map.
+//  Keys are libadwaita's custom-property names WITHOUT the leading `--`.
+//  Every entry is emitted twice (named colour + custom property).
+// ---------------------------------------------------------------------------
+$adw-tokens: (
+  // --- accent ---
+  'accent-bg-color':                  $adw_accent_bg,
+  'accent-fg-color':                  $adw_accent_fg,
+  'accent-color':                     $adw_accent_standalone,
+
+  // --- destructive / status ---
+  'destructive-bg-color':             $adw_destructive_bg,
+  'destructive-fg-color':             $adw_destructive_fg,
+  'destructive-color':                $adw_destructive_standalone,
+  'success-bg-color':                 $adw_success_bg,
+  'success-fg-color':                 $adw_success_fg,
+  'success-color':                    $adw_success_standalone,
+  'warning-bg-color':                 $adw_warning_bg,
+  'warning-fg-color':                 $adw_warning_fg,
+  'warning-color':                    $adw_warning_standalone,
+  'error-bg-color':                   $adw_error_bg,
+  'error-fg-color':                   $adw_error_fg,
+  'error-color':                      $adw_error_standalone,
+
+  // --- window ---
+  'window-bg-color':                  $adw_window_bg,
+  'window-fg-color':                  $adw_window_fg,
+
+  // --- content views (file lists, text views, ...) ---
+  'view-bg-color':                    $adw_view_bg,
+  'view-fg-color':                    $adw_view_fg,
+
+  // --- header bars ---
+  'headerbar-bg-color':               $adw_headerbar_bg,
+  'headerbar-fg-color':               $adw_headerbar_fg,
+  'headerbar-border-color':           $adw_headerbar_fg,
+  'headerbar-backdrop-color':         $adw_window_bg,
+  'headerbar-shade-color':            $adw_headerbar_shade,
+  'headerbar-darker-shade-color':     $adw_headerbar_darker_shade,
+
+  // --- sidebars ---
+  'sidebar-bg-color':                 $adw_sidebar_bg,
+  'sidebar-fg-color':                 $adw_sidebar_fg,
+  'sidebar-backdrop-color':           darken($adw_sidebar_bg, 2%),
+  'sidebar-shade-color':              $adw_shade,
+  'sidebar-border-color':             $adw_shade,
+  'secondary-sidebar-bg-color':       $adw_secondary_sidebar_bg,
+  'secondary-sidebar-fg-color':       $adw_sidebar_fg,
+  'secondary-sidebar-backdrop-color': darken($adw_secondary_sidebar_bg, 2%),
+  'secondary-sidebar-shade-color':    $adw_shade,
+  'secondary-sidebar-border-color':   $adw_shade,
+
+  // --- cards, dialogs, popovers ---
+  'card-bg-color':                    $adw_card_bg,
+  'card-fg-color':                    $adw_window_fg,
+  'card-shade-color':                 $adw_headerbar_shade,
+  'dialog-bg-color':                  $adw_dialog_bg,
+  'dialog-fg-color':                  $adw_window_fg,
+  'popover-bg-color':                 $adw_popover_bg,
+  'popover-fg-color':                 $adw_window_fg,
+  'popover-shade-color':              $adw_shade,
+
+  // --- misc surfaces ---
+  'thumbnail-bg-color':               $adw_thumbnail_bg,
+  'thumbnail-fg-color':               $adw_window_fg,
+  'overview-bg-color':                $adw_overview_bg,
+  'overview-fg-color':                $adw_window_fg,
+  'shade-color':                      $adw_shade,
+  'scrollbar-outline-color':          $adw_scrollbar_outline,
+  'active-toggle-bg-color':           transparentize($fg_color, 0.8),
+  'active-toggle-fg-color':           $adw_window_fg,
+  'banner-color':                     mix($fg_color, $bg_color, 60%),
+);
+
+
+// ---------------------------------------------------------------------------
+//  Emit 1/2 — named colours (also what libadwaita's own :root mapping reads)
+// ---------------------------------------------------------------------------
+/* libadwaita named colours — Nordic */
+@each $name, $value in $adw-tokens {
+  @define-color #{adw-underscore($name)} #{"" + $value};
+}
+
+
+// ---------------------------------------------------------------------------
+//  Emit 2/2 — custom properties, which is what libadwaita widget rules
+//  actually resolve through var().
+// ---------------------------------------------------------------------------
+:root {
+  @each $name, $value in $adw-tokens {
+    --#{$name}: #{"" + $value};
+  }
+
+  // libadwaita derives "standalone" colours (link text, status labels) from the
+  // filled ones with an oklab lightness clamp. It picks min(l, 0.5) for light
+  // backgrounds and max(l, 0.85) for dark. Nordic is always dark, so pin the
+  // dark form — otherwise accent text renders too dark to read on Nord surfaces
+  // whenever libadwaita believes it is in light mode.
+  --standalone-color-oklab: max(l, 0.85) a b;
+}
+
+
+// ---------------------------------------------------------------------------
+//  Ubuntu accent palette.
+//  Ubuntu patches libadwaita with a set of user-selectable accents and injects
+//  `@define-color accent_bg_color <hex>` per choice, which would otherwise
+//  punch a non-Nord colour straight through the theme. Remap each option onto
+//  its nearest Nord equivalent so every accent choice stays in palette.
+// ---------------------------------------------------------------------------
+$adw-ubuntu-accents: (
+  'blue':   $nord10,
+  'teal':   $nord7,
+  'green':  $nord14,
+  'yellow': $nord13,
+  'orange': $nord12,
+  'red':    $nord11,
+  'pink':   $nord15,
+  'purple': $nord15,
+  'slate':  $nord3,
+  'brown':  mix($nord12, $nord3, 60%),
+);
+
+:root {
+  @each $name, $value in $adw-ubuntu-accents {
+    --accent-#{$name}: #{"" + $value};
+  }
+}

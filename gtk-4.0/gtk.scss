@@ -11,3 +11,6 @@ $accent: 'green';
 @import 'common';
 @import 'widgets';
 @import 'apps';
+
+// libadwaita compatibility — must stay LAST so its :root rules win
+@import 'adw-compat';
