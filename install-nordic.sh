@@ -39,6 +39,65 @@ if [ "${1:-}" = "--uninstall" ]; then
   for f in "$CFG4/gtk.css.nordic-backup" "$CFG4/gtk-dark.css.nordic-backup"; do
     [ -f "$f" ] && mv "$f" "${f%.nordic-backup}" && note "restored ${f%.nordic-backup}"
   done
+  step "Removing the root-app hookup"
+  [ -L "/usr/share/themes/$THEME_NAME" ] && sudo rm -f "/usr/share/themes/$THEME_NAME" \
+    && note "unlinked /usr/share/themes/$THEME_NAME"
+  sudo rm -f /root/.config/gtk-3.0/settings.ini \
+             /root/.config/gtk-4.0/gtk.css \
+             /root/.config/gtk-4.0/gtk-dark.css 2>/dev/null
+
+  step "Removing the Mailspring theme"
+  for MS_DIR in "$HOME/snap/mailspring/common" \
+                "$HOME/.config/Mailspring" \
+                "$HOME/.var/app/com.getmailspring.Mailspring/config/Mailspring"; do
+    [ -d "$MS_DIR/packages/ui-nordic" ] || continue
+    rm -rf "$MS_DIR/packages/ui-nordic"
+    note "removed $MS_DIR/packages/ui-nordic"
+    # Only reset the selection if it still points at the theme we just deleted.
+    [ -f "$MS_DIR/config.json" ] && python3 - "$MS_DIR/config.json" <<'PY'
+import json, sys
+p = sys.argv[1]
+with open(p) as f:
+    d = json.load(f)
+core = d.get('*', {}).get('core', {})
+if core.get('themes') == ['ui-nordic'] or core.get('theme') == 'ui-nordic':
+    core['themes'] = ['ui-light']
+    core['theme'] = 'ui-light'
+    with open(p, 'w') as f:
+        json.dump(d, f, indent=2)
+PY
+  done
+
+  step "Reverting the boot splash"
+  if [ -e /usr/share/plymouth/themes/nordic/nordic.plymouth ]; then
+    sudo update-alternatives --remove default.plymouth \
+         /usr/share/plymouth/themes/nordic/nordic.plymouth >/dev/null 2>&1
+    sudo rm -rf /usr/share/plymouth/themes/nordic
+    note "removed the Nordic plymouth theme; rebuilding the initramfs"
+    sudo update-initramfs -u >/dev/null 2>&1 \
+      || note "run 'sudo update-initramfs -u' yourself"
+  fi
+
+  step "Reverting the login screen"
+  if [ -f /etc/dconf/db/gdm.d/10-nordic ]; then
+    sudo rm -f /etc/dconf/db/gdm.d/10-nordic
+    # Only drop the profile overrides we added; leave anything else alone.
+    for p in gdm Debian-gdm; do
+      if [ -f "/etc/dconf/profile/$p" ] && grep -q '^system-db:gdm$' "/etc/dconf/profile/$p"; then
+        sudo rm -f "/etc/dconf/profile/$p"
+      fi
+    done
+    sudo rm -f /usr/share/backgrounds/nordic-login.png
+    sudo dconf update 2>/dev/null
+    note "login screen reverted to the packaged defaults"
+  fi
+
+  step "Removing the theme snap"
+  if command -v snap >/dev/null 2>&1 && snap list nordic-themes >/dev/null 2>&1; then
+    sudo snap remove nordic-themes >/dev/null 2>&1 \
+      && note "removed the nordic-themes snap (connections drop with it)"
+  fi
+
   step "Reverting theme settings to Yaru"
   gsettings set org.gnome.desktop.interface gtk-theme 'Yaru-purple-dark'
   gsettings set org.gnome.desktop.wm.preferences theme 'Yaru-purple-dark'
@@ -47,6 +106,26 @@ if [ "${1:-}" = "--uninstall" ]; then
   note "Theme files left in $THEME_DIR — delete manually if you want them gone."
   echo; echo "Done. Log out and back in."
   exit 0
+fi
+
+# ---------------------------------------------------------------------------
+#  0. Ask for sudo once, up front
+# ---------------------------------------------------------------------------
+#  Several later steps need root. They used to just call sudo where needed,
+#  which broke badly: a sudo whose stderr is redirected to /dev/null still
+#  waits for a password, but the prompt is invisible. The script looks hung,
+#  nothing gets typed, and the step fails silently. Prompting once here, with
+#  stderr intact, means every later sudo runs against a warm credential cache.
+# ---------------------------------------------------------------------------
+step "0. Checking for root access"
+note "GTK3/GTK4 theming needs no root. Root is used for the GNOME Shell"
+note "extension, Flatpak overrides, root-launched apps and the theme snap."
+if sudo -v; then
+  HAVE_SUDO=yes
+  note "got it — later steps will not prompt again"
+else
+  HAVE_SUDO=no
+  note "no sudo: skipping shell theme, Flatpak, root apps and snaps"
 fi
 
 # ---------------------------------------------------------------------------
@@ -77,7 +156,10 @@ rm -rf "$THEME_DIR"
 mkdir -p "$THEME_DIR"
 # Copy everything except VCS/build cruft.
 tar -C "$REPO" \
-    --exclude='.git' --exclude='node_modules' --exclude='src' --exclude='Art' \
+    --exclude='.git' --exclude='.claude' --exclude='node_modules' \
+    --exclude='src' --exclude='Art' --exclude='extras' --exclude='*.snap' \
+    --exclude='install-nordic.sh' --exclude='Gulpfile.js' \
+    --exclude='package.json' --exclude='package-lock.json' \
     -cf - . | tar -C "$THEME_DIR" -xf -
 note "copied $(du -sh "$THEME_DIR" | cut -f1)"
 
@@ -130,11 +212,31 @@ step "4. Applying theme settings"
 gsettings set org.gnome.desktop.interface gtk-theme "$THEME_NAME"
 gsettings set org.gnome.desktop.wm.preferences theme "$THEME_NAME"
 
+# color-scheme is how libadwaita, and Chromium via the desktop portal, learn
+# that the session is dark.
+#
+# Pin the schema source. If this script is run from a terminal inside a snap
+# (VS Code's integrated terminal, for one) the snap exports
+# GSETTINGS_SCHEMA_DIR pointing at its own bundled copy of
+# org.gnome.desktop.interface. That copy is older and has no color-scheme key,
+# so an unpinned `gsettings set` fails with "No such key" and — worse — an
+# unpinned `gsettings get` makes a perfectly healthy system look broken.
+if GSETTINGS_SCHEMA_DIR=/usr/share/glib-2.0/schemas \
+     gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark' 2>/dev/null; then
+  note "color-scheme = prefer-dark"
+else
+  note "could not set color-scheme (key absent from the system schemas?)"
+fi
+
 # GNOME Shell theme needs the User Themes extension.
 if ! gnome-extensions list 2>/dev/null | grep -q 'user-theme@gnome-shell-extensions'; then
-  note "installing gnome-shell-extensions for the User Themes extension"
-  sudo apt install -y gnome-shell-extensions >/dev/null 2>&1 || \
-    note "could not install gnome-shell-extensions — do it manually"
+  if [ "$HAVE_SUDO" = yes ]; then
+    note "installing gnome-shell-extensions for the User Themes extension"
+    sudo apt install -y gnome-shell-extensions >/dev/null 2>&1 || \
+      note "could not install gnome-shell-extensions — do it manually"
+  else
+    note "no sudo — install gnome-shell-extensions yourself for the shell theme"
+  fi
 fi
 gnome-extensions enable user-theme@gnome-shell-extensions.gcampax.github.com 2>/dev/null \
   && note "User Themes extension enabled" \
@@ -146,10 +248,242 @@ gsettings set org.gnome.shell.extensions.user-theme name "$THEME_NAME" 2>/dev/nu
 #  5. Flatpak
 # ---------------------------------------------------------------------------
 step "5. Flatpak overrides"
-if command -v flatpak >/dev/null 2>&1; then
+if ! command -v flatpak >/dev/null 2>&1; then
+  note "flatpak not installed — skipped"
+elif [ "$HAVE_SUDO" != yes ]; then
+  note "no sudo — Flatpak apps will stay unthemed"
+else
   sudo flatpak override --filesystem="$HOME/.themes:ro"
   sudo flatpak override --env=GTK_THEME="$THEME_NAME"
   note "GTK3 flatpaks (e.g. GIMP) will pick this up; libadwaita flatpaks may not"
+fi
+
+# ---------------------------------------------------------------------------
+#  6. Apps that run as root
+# ---------------------------------------------------------------------------
+#  GParted and Synaptic relaunch themselves through pkexec, which resets the
+#  environment and sets HOME=/root. GTK then searches /root/.themes,
+#  /root/.local/share/themes and /usr/share/themes — never your ~/.themes — so
+#  it cannot find a theme called Nordic and falls back to Adwaita. You get a
+#  Nordic titlebar (drawn by mutter, as you) around an Adwaita-light window.
+#
+#  Exposing the theme system-wide fixes the lookup; the settings.ini is the
+#  fallback for when XSETTINGS is not reachable from the elevated process.
+# ---------------------------------------------------------------------------
+step "6. Apps that run as root (GParted, Synaptic)"
+SYS_THEME="/usr/share/themes/$THEME_NAME"
+if [ -e "$SYS_THEME" ] && [ ! -L "$SYS_THEME" ]; then
+  note "$SYS_THEME exists and is not our symlink — left alone"
+elif [ "$HAVE_SUDO" != yes ]; then
+  note "no sudo — root apps (GParted, Synaptic) will stay Adwaita"
+elif sudo ln -sfnT "$THEME_DIR" "$SYS_THEME" 2>/dev/null; then
+  note "linked $SYS_THEME -> $THEME_DIR"
+  ICONS=$(gsettings get org.gnome.desktop.interface icon-theme | tr -d \')
+  FONT=$(gsettings get org.gnome.desktop.interface font-name | tr -d \')
+  sudo install -d -m 755 /root/.config/gtk-3.0 2>/dev/null
+  sudo tee /root/.config/gtk-3.0/settings.ini >/dev/null 2>&1 <<EOF
+[Settings]
+gtk-theme-name=$THEME_NAME
+gtk-icon-theme-name=$ICONS
+gtk-font-name=$FONT
+gtk-application-prefer-dark-theme=true
+EOF
+  note "wrote /root/.config/gtk-3.0/settings.ini"
+  # GTK4/libadwaita apps run as root need the same user-stylesheet trick. The
+  # url()s inside are already absolute file:// paths that root can read.
+  if [ -f "$CFG4/gtk.css" ]; then
+    sudo install -d -m 755 /root/.config/gtk-4.0 2>/dev/null
+    sudo install -m 644 "$CFG4/gtk.css"      /root/.config/gtk-4.0/gtk.css      2>/dev/null
+    sudo install -m 644 "$CFG4/gtk-dark.css" /root/.config/gtk-4.0/gtk-dark.css 2>/dev/null
+    note "copied the GTK4 stylesheet into /root"
+  fi
+  note "GParted's partition-graph swatches stay as they are — those 38 colours"
+  note "are compiled into /usr/libexec/gpartedbin, not drawn from the theme"
+else
+  note "could not link $SYS_THEME — root apps will stay Adwaita"
+fi
+
+# ---------------------------------------------------------------------------
+#  7. Mailspring
+# ---------------------------------------------------------------------------
+#  Mailspring is Electron: the whole UI is Chromium-rendered HTML/CSS driven by
+#  its own theme packages, so GTK never touches it. On the snap build it cannot
+#  even see ~/.themes — snaps only get themes through the gtk-3-themes content
+#  interface, which is wired to gtk-common-themes (53 themes, no Nordic).
+#  So we ship a real Mailspring theme package instead.
+# ---------------------------------------------------------------------------
+step "7. Mailspring theme"
+MS_SRC="$REPO/extras/mailspring/ui-nordic"
+MS_FOUND=no
+for MS_DIR in "$HOME/snap/mailspring/common" \
+              "$HOME/.config/Mailspring" \
+              "$HOME/.var/app/com.getmailspring.Mailspring/config/Mailspring"; do
+  [ -d "$MS_DIR" ] || continue
+  MS_FOUND=yes
+  mkdir -p "$MS_DIR/packages"
+  rm -rf "$MS_DIR/packages/ui-nordic"
+  cp -r "$MS_SRC" "$MS_DIR/packages/ui-nordic"
+  note "installed ui-nordic -> $MS_DIR/packages/"
+
+  # Match the process name, or the binary path — never a bare "mailspring",
+  # which would also match this script's own argv and never install anything.
+  if pgrep -x mailspring >/dev/null 2>&1 || pgrep -f 'bin/mailspring' >/dev/null 2>&1; then
+    note "Mailspring is running — quit it, reopen, then pick Nordic under"
+    note "Preferences > Appearance (or re-run this script once it is closed)"
+  elif [ -f "$MS_DIR/config.json" ]; then
+    python3 - "$MS_DIR/config.json" <<'PY'
+import json, sys
+p = sys.argv[1]
+with open(p) as f:
+    d = json.load(f)
+core = d.setdefault('*', {}).setdefault('core', {})
+core['themes'] = ['ui-nordic']
+core['theme'] = 'ui-nordic'          # legacy key, kept consistent
+with open(p, 'w') as f:
+    json.dump(d, f, indent=2)
+PY
+    note "selected Nordic in $MS_DIR/config.json"
+  fi
+done
+if [ "$MS_FOUND" = no ]; then
+  note "Mailspring not installed — skipped"
+fi
+
+# ---------------------------------------------------------------------------
+#  8. Snaps
+# ---------------------------------------------------------------------------
+#  A snap cannot read ~/.themes. It only sees themes handed to it over the
+#  gtk-3-themes content interface, wired by default to gtk-common-themes — 53
+#  themes, no Nordic. The snap finds nothing by that name and falls back to
+#  Adwaita light, which is what draws the pale window frame around an otherwise
+#  themed app. Publishing Nordic as our own content snap and connecting it
+#  alongside gtk-common-themes fixes it: one plug can take several slots, which
+#  is exactly how icon-theme-papirus already coexists there.
+# ---------------------------------------------------------------------------
+step "8. Snaps"
+if ! command -v snap >/dev/null 2>&1; then
+  note "snapd not installed — skipped"
+else
+  SNAP_CONSUMERS=$(snap connections 2>/dev/null \
+    | awk '$1 == "content[gtk-3-themes]" { split($2, a, ":"); print a[1] }' | sort -u)
+  if [ -z "$SNAP_CONSUMERS" ]; then
+    note "no installed snap uses gtk-3-themes — skipped"
+  elif ! command -v mksquashfs >/dev/null 2>&1; then
+    note "mksquashfs missing (apt install squashfs-tools) — skipped"
+  else
+    SNAP_PKG="$REPO/nordic-themes_1.0_all.snap"
+    if "$REPO/extras/snap/build-nordic-theme-snap.sh" "$SNAP_PKG" >/dev/null 2>&1; then
+      note "built $(basename "$SNAP_PKG") ($(du -h "$SNAP_PKG" | cut -f1))"
+      if [ "$HAVE_SUDO" = yes ] && SNAP_ERR=$(sudo snap install --dangerous "$SNAP_PKG" 2>&1); then
+        note "installed the nordic-themes content snap"
+        for s in $SNAP_CONSUMERS; do
+          sudo snap connect "$s:gtk-3-themes" nordic-themes:gtk-3-themes 2>/dev/null \
+            && note "connected $s -> nordic-themes" \
+            || note "could not connect $s (already connected?)"
+        done
+        note "fully quit each of those snaps (check the tray) and reopen them"
+        rm -f "$SNAP_PKG"
+      else
+        # Keep the .snap around — it is what the manual command needs.
+        [ -n "${SNAP_ERR:-}" ] && note "snapd said: $SNAP_ERR"
+        note "snap install failed. Finish by hand with:"
+        note "   sudo snap install --dangerous $SNAP_PKG"
+        for s in $SNAP_CONSUMERS; do
+          note "   sudo snap connect $s:gtk-3-themes nordic-themes:gtk-3-themes"
+        done
+      fi
+    else
+      note "could not build the theme snap — skipped"
+    fi
+  fi
+fi
+
+# ---------------------------------------------------------------------------
+#  9. Boot splash (Plymouth)
+# ---------------------------------------------------------------------------
+#  A `script`-plugin theme: snowflake on Polar Night, a travelling row of dots,
+#  and a password prompt for encrypted disks. Artwork is generated by
+#  extras/render-boot-assets.py from the same palette as the GTK theme.
+# ---------------------------------------------------------------------------
+step "9. Boot splash (Plymouth)"
+if [ "$HAVE_SUDO" != yes ]; then
+  note "no sudo — boot splash skipped"
+elif [ ! -d /usr/share/plymouth/themes ]; then
+  note "plymouth not installed — skipped"
+elif [ ! -f /usr/lib/x86_64-linux-gnu/plymouth/script.so ]; then
+  note "plymouth 'script' plugin missing (apt install plymouth-themes) — skipped"
+elif [ ! -f "$REPO/extras/plymouth/nordic/logo.png" ]; then
+  # A theme with missing images fails at boot, which is a bad place to find out.
+  note "artwork missing — run ./extras/render-boot-assets.py first; skipped"
+else
+  sudo rm -rf /usr/share/plymouth/themes/nordic
+  sudo cp -r "$REPO/extras/plymouth/nordic" /usr/share/plymouth/themes/nordic
+  sudo chmod -R a+rX /usr/share/plymouth/themes/nordic
+  note "installed /usr/share/plymouth/themes/nordic"
+
+  sudo update-alternatives --install /usr/share/plymouth/themes/default.plymouth \
+       default.plymouth /usr/share/plymouth/themes/nordic/nordic.plymouth 200 >/dev/null
+  sudo update-alternatives --set default.plymouth \
+       /usr/share/plymouth/themes/nordic/nordic.plymouth >/dev/null 2>&1
+  note "set as the default plymouth theme"
+
+  # The theme lives in the initramfs, so it does not take effect until this
+  # runs. It is slow — tens of seconds — and is the reason this step is last.
+  note "rebuilding the initramfs (this takes a while)"
+  if sudo update-initramfs -u >/dev/null 2>&1; then
+    note "initramfs rebuilt — the splash appears on next boot"
+  else
+    note "update-initramfs failed; run 'sudo update-initramfs -u' yourself"
+  fi
+fi
+
+# ---------------------------------------------------------------------------
+#  10. Login screen (GDM)
+# ---------------------------------------------------------------------------
+#  GDM reads its settings through the dconf profile named `gdm`. The stock
+#  profile only chains user-db + the packaged file-db, with no system-db, so
+#  dropping a file in /etc/dconf/db/gdm.d has no effect until the profile is
+#  extended. A profile in /etc overrides the one in /usr/share, which is how
+#  this stays out of the way of the gdm3 package.
+#
+#  The background must live outside $HOME: the greeter runs as user `gdm`,
+#  which cannot read /home/<you>.
+# ---------------------------------------------------------------------------
+step "10. Login screen (GDM)"
+if [ "$HAVE_SUDO" != yes ]; then
+  note "no sudo — login screen skipped"
+elif ! command -v dconf >/dev/null 2>&1 || [ ! -d /usr/share/gdm ]; then
+  note "GDM or dconf not present — skipped"
+elif [ ! -f "$REPO/extras/gdm/nordic-login.png" ]; then
+  note "background missing — run ./extras/render-boot-assets.py first; skipped"
+else
+  sudo install -D -m 644 "$REPO/extras/gdm/nordic-login.png" \
+       /usr/share/backgrounds/nordic-login.png
+  note "background -> /usr/share/backgrounds/nordic-login.png"
+
+  for p in gdm Debian-gdm; do
+    sudo install -d -m 755 /etc/dconf/profile
+    printf 'user-db:user\nsystem-db:gdm\nfile-db:/var/lib/gdm3/greeter-dconf-defaults\n' \
+      | sudo tee "/etc/dconf/profile/$p" >/dev/null
+  done
+  note "extended the gdm dconf profile with system-db:gdm"
+
+  sudo install -d -m 755 /etc/dconf/db/gdm.d
+  sudo tee /etc/dconf/db/gdm.d/10-nordic >/dev/null <<'EOF'
+# Nordic login screen. Managed by install-nordic.sh — edit
+# extras/gdm/ in the Nordic repo instead of this file.
+[com/ubuntu/login-screen]
+background-picture-uri='file:///usr/share/backgrounds/nordic-login.png'
+background-size='cover'
+background-repeat='no-repeat'
+background-color='#2e3440'
+EOF
+  if sudo dconf update 2>/dev/null; then
+    note "wrote /etc/dconf/db/gdm.d/10-nordic and rebuilt the db"
+    note "visible at the next login screen (reboot, or restart gdm)"
+  else
+    note "dconf update failed — run 'sudo dconf update' yourself"
+  fi
 fi
 
 echo

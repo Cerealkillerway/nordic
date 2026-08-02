@@ -1,0 +1,237 @@
+// Nordic — Mailspring UI theme
+// ---------------------------------------------------------------------------
+// Mailspring is Electron: its whole UI is Chromium-rendered HTML/CSS driven by
+// theme packages like this one. The GTK theme cannot reach it (and on the snap
+// build it cannot even see ~/.themes), so the palette below is transcribed
+// from Nordic's own GTK3 stylesheet to keep the two in step.
+//
+// Source of truth — gtk-3.0/gtk.css:
+//   #2b313c  headerbar / toolbar        #d8dee9  theme_fg_color
+//   #434c5e  theme_bg_color             #8e95a4  insensitive_fg_color
+//   #3b4252  theme_base_color           #8fbcbb  theme_selected_bg_color
+//   #2e3440  popovers, menus            #232831  borders
+// ---------------------------------------------------------------------------
+
+@import 'base/ui-variables';
+
+//=============================== Palette ==============================//
+
+// Polar Night, as Nordic actually grades it (darker than upstream Nord).
+@nord-polar-0: #232831; // borders, deepest edge
+@nord-polar-1: #2b313c; // headerbar / toolbar
+@nord-polar-2: #2e3440; // popovers, menus, inputs
+@nord-polar-3: #3b4252; // base: lists and content
+@nord-polar-4: #434c5e; // raised surfaces, window background
+@nord-polar-5: #4c566a; // hover on raised surfaces
+
+// Snow Storm.
+@nord-snow-0: #d8dee9; // primary text
+@nord-snow-1: #e5e9f0;
+@nord-snow-2: #eceff4; // headings
+@nord-subtle: #8e95a4; // secondary text
+
+// Frost. Nordic's accent is the teal, not the blue.
+@nord-teal: #8fbcbb;
+@nord-teal-dark: #6fa9a8;
+@nord-cyan: #88c0d0;
+@nord-blue: #81a1c1;
+@nord-blue-deep: #5e81ac;
+
+// Aurora.
+@nord-red: #bf616a;
+@nord-orange: #d08770;
+@nord-yellow: #ebcb8b;
+@nord-green: #a3be8c;
+@nord-purple: #b48ead;
+
+//=========================== Base grey ramp ===========================//
+// base/ui-variables.less builds its greys with lighten() from a near-black
+// @gray-base, so on a dark UI every one of them comes out wrong. ui-dark just
+// flips the anchor to #fff and lets darken() run, but that puts @gray-lighter
+// at #131313 — blacker than anything in Nord. Map the ramp onto real palette
+// entries instead: @gray-darker..@gray-light are text tones, @gray-lighter is
+// the one base uses as a *surface* (@panel-background-color, disabled inputs).
+
+@gray-base: #ffffff;
+@gray-darker: @nord-snow-2;
+@gray-dark: @nord-snow-1;
+@gray: @nord-snow-0;
+@gray-light: @nord-subtle;
+@gray-lighter: @nord-polar-2;
+@white: @nord-polar-2;
+
+@blue-dark: @nord-blue-deep;
+@blue: @nord-blue;
+@blue-light: @nord-cyan;
+
+//============================= Descriptors ============================//
+
+// --system-accent is set at runtime when the user opts into mirroring the OS
+// tint; the fallbacks are Nordic's own selection colour. Never run darken() on
+// these — they may resolve to a CSS var() that LESS cannot compute.
+@accent-primary: var(--system-accent, @nord-teal);
+@accent-primary-dark: var(--system-accent-dark, @nord-teal-dark);
+
+@background-primary: @nord-polar-3;
+@background-off-primary: @nord-polar-3;
+@background-secondary: @nord-polar-2;
+@background-tertiary: @nord-polar-4;
+
+@background-gradient: linear-gradient(to top, @nord-polar-2 0%, @nord-polar-3 100%);
+
+@color-info: @nord-blue-deep;
+@color-success: @nord-green;
+@color-warning: @nord-yellow;
+@color-error: @nord-red;
+@color-danger: @nord-red;
+
+// The active/focused surface is the teal accent, so anything sitting on it
+// needs dark text — white on #8fbcbb does not carry enough contrast.
+@component-active-bg: @nord-snow-0;
+
+@border-color-primary: @nord-polar-0;
+@border-color-secondary: @nord-polar-0;
+@border-color-tertiary: @nord-polar-5;
+@border-color-divider: #262c36; // Nordic's unfocused_borders
+
+//============================== Typography ============================//
+
+@text-color: @nord-snow-0;
+@text-color-subtle: fadeout(@text-color, 25%);
+@text-color-very-subtle: fadeout(@text-color, 50%);
+@text-color-inverse: @nord-snow-2;
+@text-color-inverse-subtle: fadeout(@text-color-inverse, 20%);
+@text-color-inverse-very-subtle: fadeout(@text-color-inverse, 50%);
+@text-color-heading: @nord-snow-2;
+
+@text-color-link: @nord-cyan;
+@text-color-link-hover: @nord-teal;
+@text-color-link-active: @nord-teal;
+
+// Sits on the teal accent.
+@text-color-selected: @nord-polar-2;
+
+@text-color-search-match: @nord-yellow;
+@text-color-search-current-match: @nord-orange;
+
+//=============================== Shadows ==============================//
+// The base shadows are tuned for a white UI and vanish on Polar Night.
+
+@standard-shadow-color: rgba(0, 0, 0, 0.4);
+
+//=============================== Buttons ==============================//
+
+@btn-border-color: @nord-polar-0;
+@btn-default-bg-color: @nord-polar-4;
+@btn-default-text-color: @text-color;
+@btn-icon-color: @nord-snow-0;
+
+@btn-action-bg-color: @nord-green;
+@btn-action-text-color: @nord-polar-2;
+
+@btn-emphasis-bg-color: @nord-blue-deep;
+@btn-emphasis-text-color: @nord-snow-2;
+
+@btn-danger-bg-color: @nord-red;
+@btn-danger-text-color: @nord-polar-2;
+
+//============================== Dropdowns =============================//
+
+@dropdown-default-bg-color: @nord-polar-2;
+@dropdown-default-text-color: @text-color;
+@dropdown-default-border-color: @nord-polar-0;
+
+//================================ Inputs ==============================//
+
+@input-bg: @nord-polar-2;
+@input-bg-disabled: @nord-polar-4;
+@input-border: @border-color-divider;
+@input-border-color: @nord-polar-0;
+@input-border-color-blurred: @nord-polar-0;
+
+//============================== Components ============================//
+
+@toolbar-background-color: @nord-polar-1;
+
+@panel-background-color: @nord-polar-1;
+@source-list-bg: @panel-background-color;
+@source-list-active-bg: @panel-background-color;
+@source-list-active-color: @nord-teal;
+
+@list-bg: @nord-polar-3;
+@list-border: @nord-polar-4;
+@list-hover-bg: #3d4455; // Nordic's own sidebar hover
+@list-focused-color: @nord-polar-2; // on the teal accent
+@list-selected-color: @nord-snow-2; // on a 17% teal tint of @list-bg
+
+@background-color-info: @nord-blue-deep;
+@background-color-success: @nord-green;
+@background-color-warning: @nord-orange;
+@background-color-error: @nord-red;
+@background-color-pending: @nord-polar-5;
+
+@menu-item-color-hover: fade(@nord-teal, 12%);
+@menu-item-color-selected: @nord-teal;
+@menu-text-color-selected: @nord-polar-2;
+
+//=============================== Features =============================//
+
+@open-tracking-color: @nord-purple;
+@link-tracking-color: @nord-red;
+
+//======================== Rules the variables miss ====================//
+
+// Monochrome glyph sets ship as dark-on-transparent PNGs.
+.thread-icon:not(.thread-icon-unread):not(.thread-icon-star) {
+  filter: invert(100%);
+}
+img.content-dark,
+img.content-light {
+  filter: invert(100%);
+}
+
+// Gmail-style labels arrive with their own saturated colours; pull them back
+// toward the muted Aurora range so they sit inside the palette.
+.mail-label {
+  filter: saturate(70%) brightness(88%);
+}
+
+// A white halo around message cards is wrong on Polar Night.
+#message-list .message-item-wrap .message-item-white-wrap {
+  box-shadow: 0 0 0.5px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+// Read threads recede; unread stays at full @text-color.
+.thread-list .list-item:not(.unread):not(.selected):not(.focused) {
+  color: @nord-subtle;
+}
+
+// Send-later / reminder rows get the Frost blue instead of the stock violet.
+.thread-list .list-item.thread-list-reminder-item {
+  background-color: fade(@nord-blue-deep, 22%);
+
+  &.unread {
+    background-color: fade(@nord-blue-deep, 22%);
+    &:not(.focused):not(.selected) {
+      background-color: fade(@nord-blue-deep, 22%);
+    }
+  }
+}
+
+.send-reminders-header {
+  color: @nord-cyan;
+  background: fade(@nord-blue-deep, 22%);
+  border-bottom: 1px solid @nord-blue-deep;
+}
+
+// Nordic's headerbar is flat: one hairline, no drop shadow.
+.sheet-toolbar {
+  box-shadow: none;
+  border-bottom: 1px solid @nord-polar-0;
+}
+.sheet-toolbar-container {
+  background: @panel-background-color;
+}
+body.is-blurred .sheet-toolbar-container {
+  background: @nord-polar-2;
+}

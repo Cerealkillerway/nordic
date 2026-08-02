@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=Nordic
+Description=Nordic boot splash, matching the Nordic GTK theme
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/nordic
+ScriptFile=/usr/share/plymouth/themes/nordic/nordic.script

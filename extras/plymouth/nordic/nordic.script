@@ -1,0 +1,164 @@
+# Nordic boot splash
+# ---------------------------------------------------------------------------
+# A snowflake on Polar Night with a travelling row of dots underneath, plus a
+# password prompt for encrypted disks.
+#
+# Colours are the Nordic palette as 0..1 floats:
+#   #232831 -> 0.137 0.157 0.192   border / darkest
+#   #3b4252 -> 0.231 0.263 0.322   base
+#   #d8dee9 -> 0.847 0.871 0.914   foreground
+#   #8e95a4 -> 0.557 0.584 0.643   subtle
+#
+# Artwork comes from extras/render-boot-assets.py — edit that, not the PNGs.
+# ---------------------------------------------------------------------------
+
+Window.SetBackgroundTopColor(0.137, 0.157, 0.192);
+Window.SetBackgroundBottomColor(0.231, 0.263, 0.322);
+
+screen_width = Window.GetWidth();
+screen_height = Window.GetHeight();
+
+FONT = "Ubuntu 11";
+FG_R = 0.847;
+FG_G = 0.871;
+FG_B = 0.914;
+
+# --- snowflake -------------------------------------------------------------
+logo.image = Image("logo.png");
+logo.width = logo.image.GetWidth();
+logo.height = logo.image.GetHeight();
+logo.x = screen_width / 2 - logo.width / 2;
+logo.y = screen_height / 2 - logo.height / 2 - 70;
+logo.sprite = Sprite(logo.image);
+logo.sprite.SetPosition(logo.x, logo.y, 10);
+
+# --- throbber --------------------------------------------------------------
+DOTS = 6;
+DOT_GAP = 26;
+dot_image = Image("dot.png");
+dots_y = logo.y + logo.height + 46;
+dots_left = screen_width / 2 - (DOTS * DOT_GAP) / 2
+            + (DOT_GAP - dot_image.GetWidth()) / 2;
+
+for (i = 0; i < DOTS; i++) {
+    dots[i].sprite = Sprite(dot_image);
+    dots[i].sprite.SetPosition(dots_left + i * DOT_GAP, dots_y, 10);
+    dots[i].sprite.SetOpacity(0.25);
+}
+
+# --- password prompt (hidden until asked for) ------------------------------
+field.image = Image("field.png");
+field.width = field.image.GetWidth();
+field.height = field.image.GetHeight();
+field.x = screen_width / 2 - field.width / 2;
+field.y = dots_y + 54;
+field.sprite = Sprite(field.image);
+field.sprite.SetPosition(field.x, field.y, 10);
+field.sprite.SetOpacity(0);
+
+prompt.sprite = Sprite();
+bullets.sprite = Sprite();
+message.sprite = Sprite();
+
+asking_for_password = 0;
+
+fun hide_dots() {
+    for (i = 0; i < DOTS; i++)
+        dots[i].sprite.SetOpacity(0);
+}
+
+blank = Image.Text("", 0, 0, 0, 0, FONT);
+
+# ---------------------------------------------------------------------------
+#  Animation. Called roughly 50x a second.
+# ---------------------------------------------------------------------------
+tick = 0;
+
+fun refresh_callback() {
+    tick++;
+
+    # travelling wave across the dots. Guarded with if/else rather than an
+    # early `return;` — a bare valueless return is not worth relying on here.
+    if (asking_for_password == 0) {
+        for (i = 0; i < DOTS; i++) {
+            wave = Math.Sin(tick * 0.10 - i * 0.65);
+            dots[i].sprite.SetOpacity(0.18 + 0.72 * (0.5 + 0.5 * wave));
+        }
+    }
+}
+
+Plymouth.SetRefreshFunction(refresh_callback);
+
+# ---------------------------------------------------------------------------
+#  Password entry, for LUKS-encrypted disks
+# ---------------------------------------------------------------------------
+fun display_password_callback(prompt_text, bullet_count) {
+    asking_for_password = 1;
+    hide_dots();
+    field.sprite.SetOpacity(1);
+
+    label = Image.Text(prompt_text, FG_R, FG_G, FG_B, 1, FONT);
+    prompt.sprite.SetImage(label);
+    prompt.sprite.SetPosition(screen_width / 2 - label.GetWidth() / 2,
+                              field.y - label.GetHeight() - 14, 11);
+
+    if (bullet_count > 0) {
+        bullet_string = "";
+        for (i = 0; i < bullet_count; i++)
+            bullet_string = bullet_string + "•";
+
+        marks = Image.Text(bullet_string, FG_R, FG_G, FG_B, 1, FONT);
+        bullets.sprite.SetImage(marks);
+        bullets.sprite.SetPosition(screen_width / 2 - marks.GetWidth() / 2,
+                                   field.y + field.height / 2 - marks.GetHeight() / 2,
+                                   11);
+    } else {
+        bullets.sprite.SetImage(blank);
+    }
+}
+
+Plymouth.SetDisplayPasswordFunction(display_password_callback);
+
+# ---------------------------------------------------------------------------
+#  Back to the normal splash
+# ---------------------------------------------------------------------------
+fun display_normal_callback() {
+    asking_for_password = 0;
+    field.sprite.SetOpacity(0);
+    prompt.sprite.SetImage(blank);
+    bullets.sprite.SetImage(blank);
+}
+
+Plymouth.SetDisplayNormalFunction(display_normal_callback);
+
+# ---------------------------------------------------------------------------
+#  fsck progress, systemd messages, etc.
+# ---------------------------------------------------------------------------
+fun message_callback(text) {
+    line = Image.Text(text, 0.557, 0.584, 0.643, 1, FONT);
+    message.sprite.SetImage(line);
+    message.sprite.SetPosition(screen_width / 2 - line.GetWidth() / 2,
+                               screen_height - line.GetHeight() - 40, 11);
+}
+
+# NB: the callback is SetDisplayMessageFunction. There is no
+# Plymouth.SetMessageFunction — script.so does not register one, and calling it
+# silently does nothing, so fsck/systemd messages would never appear.
+Plymouth.SetDisplayMessageFunction(message_callback);
+
+fun hide_message_callback(text) {
+    message.sprite.SetImage(blank);
+}
+
+Plymouth.SetHideMessageFunction(hide_message_callback);
+
+# ---------------------------------------------------------------------------
+#  Fade out on handover to the display manager
+# ---------------------------------------------------------------------------
+fun quit_callback() {
+    logo.sprite.SetOpacity(0);
+    hide_dots();
+    field.sprite.SetOpacity(0);
+}
+
+Plymouth.SetQuitFunction(quit_callback);

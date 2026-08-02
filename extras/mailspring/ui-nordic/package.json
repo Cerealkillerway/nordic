@@ -1,0 +1,12 @@
+{
+  "name": "ui-nordic",
+  "displayName": "Nordic",
+  "theme": "ui",
+  "version": "1.0.0",
+  "description": "Nordic — matches the Nordic GTK desktop theme.",
+  "license": "GPL-3.0",
+  "engines": {
+    "mailspring": "*"
+  },
+  "private": true
+}

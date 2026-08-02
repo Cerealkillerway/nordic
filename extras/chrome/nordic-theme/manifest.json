@@ -1,0 +1,36 @@
+{
+  "manifest_version": 3,
+  "name": "Nordic",
+  "version": "1.0.0",
+  "description": "Nordic — matches the Nordic GTK desktop theme.",
+  "theme": {
+    "colors": {
+      "frame": [43, 49, 60],
+      "frame_inactive": [35, 40, 49],
+      "frame_incognito": [35, 40, 49],
+      "frame_incognito_inactive": [29, 33, 40],
+
+      "toolbar": [59, 66, 82],
+      "toolbar_button_icon": [216, 222, 233],
+
+      "tab_text": [216, 222, 233],
+      "tab_background_text": [142, 149, 164],
+      "tab_background_text_inactive": [128, 134, 144],
+
+      "omnibox_background": [46, 52, 64],
+      "omnibox_text": [216, 222, 233],
+
+      "bookmark_text": [216, 222, 233],
+
+      "ntp_background": [46, 52, 64],
+      "ntp_text": [216, 222, 233],
+      "ntp_link": [136, 192, 208]
+    },
+    "tints": {
+      "buttons": [-1, -1, -1]
+    },
+    "properties": {
+      "ntp_logo_alternate": 1
+    }
+  }
+}

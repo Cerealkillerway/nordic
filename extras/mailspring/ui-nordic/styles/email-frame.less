@@ -1,0 +1,37 @@
+// Styles injected into the iframe that renders the message body.
+//
+// The stock Dark theme does `filter: invert(100%) hue-rotate(180deg)` here.
+// That guarantees a dark message pane, but it also mangles every branded HTML
+// newsletter and every photo into a negative. Nord has a light half, so
+// instead the message renders on Snow Storm — mail looks the way the sender
+// intended, on paper that belongs to the palette rather than raw #fff.
+//
+// If you would rather have the inverted pane, comment out the block below and
+// uncomment the one under it.
+
+.ignore-in-parent-frame {
+  body {
+    background-color: #eceff4; // nord6
+    color: #2e3440; // nord0
+  }
+
+  a,
+  a:visited {
+    color: #5e81ac; // nord10
+  }
+
+  blockquote {
+    border-left: 2px solid #d8dee9;
+    color: #4c566a;
+  }
+
+  hr {
+    border: 0;
+    border-top: 1px solid #d8dee9;
+  }
+}
+
+// .ignore-in-parent-frame {
+//   body { filter: invert(100%) hue-rotate(180deg); color: #111; }
+//   img  { filter: invert(100%) hue-rotate(180deg); }
+// }

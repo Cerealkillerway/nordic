@@ -8,5 +8,11 @@ node_modules/
 _gnome-shell/
 
 install.sh
+
+# Built by extras/snap/build-nordic-theme-snap.sh
+*.snap
+
+# Written by Chrome into the theme dir when it is loaded unpacked
+Cached Theme.pak
 *blue.*
 
