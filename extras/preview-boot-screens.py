@@ -60,6 +60,21 @@ def background(ctx):
     ctx.set_source(g)
     ctx.paint()
 
+    # nordic.script draws background.png over the gradient, scaled to cover.
+    # Mirror that here or the preview shows a splash nobody will ever see.
+    art = os.path.join(THEME, "background.png")
+    if not os.path.exists(art):
+        return
+    bg = cairo.ImageSurface.create_from_png(art)
+    scale = max(W / bg.get_width(), H / bg.get_height())
+    ctx.save()
+    ctx.translate((W - bg.get_width() * scale) / 2,
+                  (H - bg.get_height() * scale) / 2)
+    ctx.scale(scale, scale)
+    ctx.set_source_surface(bg, 0, 0)
+    ctx.paint()
+    ctx.restore()
+
 
 def paste(ctx, surf, x, y, alpha=1.0):
     ctx.save()

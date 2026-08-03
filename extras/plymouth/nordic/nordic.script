@@ -23,6 +23,24 @@ FG_R = 0.847;
 FG_G = 0.871;
 FG_B = 0.914;
 
+# --- background artwork ----------------------------------------------------
+# Scaled to *cover* the screen rather than stretched to it: Image.Scale takes
+# an explicit width and height, so passing the screen size directly would
+# distort the picture on any aspect ratio but the one it was rendered at.
+# Scale by the larger of the two ratios and centre the overflow instead.
+# The gradient set above stays as the fallback if the image is missing.
+bg.image = Image("background.png");
+bg.sx = screen_width / bg.image.GetWidth();
+bg.sy = screen_height / bg.image.GetHeight();
+if (bg.sx > bg.sy)
+    bg.scale = bg.sx;
+else
+    bg.scale = bg.sy;
+bg.w = bg.image.GetWidth() * bg.scale;
+bg.h = bg.image.GetHeight() * bg.scale;
+bg.sprite = Sprite(bg.image.Scale(bg.w, bg.h));
+bg.sprite.SetPosition((screen_width - bg.w) / 2, (screen_height - bg.h) / 2, 0);
+
 # --- snowflake -------------------------------------------------------------
 logo.image = Image("logo.png");
 logo.width = logo.image.GetWidth();

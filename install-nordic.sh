@@ -27,6 +27,13 @@ THEME_DIR="$HOME/.themes/$THEME_NAME"
 CFG4="$HOME/.config/gtk-4.0"
 SASS_VER="1.77.8"
 
+# Which login-screen background to install, from extras/gdm/:
+#   nordic-login.png             plain Polar Night gradient with a snowflake
+#   nordic-login-storm.png       drawn storm: lightning and a hatched sea
+#   nordic-login-jormungandr.png artwork recoloured to the palette
+# Override for one run with:  NORDIC_LOGIN_BG=nordic-login.png ./install-nordic.sh
+LOGIN_BG="${NORDIC_LOGIN_BG:-nordic-login-jormungandr.png}"
+
 step() { echo; echo "==> $*"; }
 note() { echo "    ~ $*"; }
 
@@ -444,6 +451,8 @@ else
 
   # The theme lives in the initramfs, so it does not take effect until this
   # runs. It is slow — tens of seconds — and is the reason this step is last.
+  note "theme is $(du -sh "$REPO/extras/plymouth/nordic" | cut -f1), mostly the"
+  note "background artwork — that much is added to the initramfs"
   note "rebuilding the initramfs (this takes a while)"
   if sudo update-initramfs -u >/dev/null 2>&1; then
     note "initramfs rebuilt — the splash appears on next boot"
@@ -469,12 +478,14 @@ if [ "$HAVE_SUDO" != yes ]; then
   note "no sudo — login screen skipped"
 elif ! command -v dconf >/dev/null 2>&1 || [ ! -d /usr/share/gdm ]; then
   note "GDM or dconf not present — skipped"
-elif [ ! -f "$REPO/extras/gdm/nordic-login.png" ]; then
-  note "background missing — run ./extras/render-boot-assets.py first; skipped"
+elif [ ! -f "$REPO/extras/gdm/$LOGIN_BG" ]; then
+  note "$LOGIN_BG missing — run ./extras/render-boot-assets.py first; skipped"
 else
-  sudo install -D -m 644 "$REPO/extras/gdm/nordic-login.png" \
+  # Always installed under one fixed name, so switching LOGIN_BG does not
+  # leave the previous choice behind in /usr/share/backgrounds.
+  sudo install -D -m 644 "$REPO/extras/gdm/$LOGIN_BG" \
        /usr/share/backgrounds/nordic-login.png
-  note "background -> /usr/share/backgrounds/nordic-login.png"
+  note "background -> /usr/share/backgrounds/nordic-login.png (from $LOGIN_BG)"
 
   # The badge under the password box. Stock is the Ubuntu wordmark at
   # /usr/share/pixmaps/ubuntu-logo-text-dark.svg, pointed at by
