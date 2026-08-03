@@ -209,12 +209,40 @@ Two things to know if you change it. `Plymouth.SetMessageFunction` does not
 exist — the callback is `SetDisplayMessageFunction`, and calling the wrong one
 fails silently, so fsck and systemd messages simply never appear. And the theme
 is baked into the initramfs, so nothing changes until `update-initramfs -u`
-runs. To preview without rebooting:
+runs.
+
+Three ways to see either screen without rebooting, cheapest first:
 
 ```sh
-sudo plymouthd --debug --tty=/dev/tty2 ; sudo plymouth --show-splash
-sleep 10 ; sudo plymouth --quit
+# 1. Offline mock-up. Needs nothing, installs nothing, ~1 second.
+#    Reproduces nordic.script's layout in Python from the same PNGs.
+./extras/render-boot-assets.py && ./extras/preview-boot-screens.py ~/preview
+
+# 2. The real Plymouth, in a window. Renders the actual theme.
+sudo apt install plymouth-x11
+sudo plymouthd --debug --renderer=x11 ; sudo plymouth --show-splash
+sleep 15 ; sudo plymouth --quit
+
+# 3. The real GDM greeter, nested in a window.
+dbus-run-session -- gnome-shell --mode=gdm --wayland
 ```
+
+Only (2) and (3) execute the real thing; (1) is a mock-up and will not catch a
+script error. Note that (3) runs the greeter under *your* dconf profile, not
+gdm's, so it shows the greeter layout but not the background from
+`/etc/dconf/db/gdm.d/10-nordic`.
+
+The badge below the password box is `org.gnome.login-screen logo`, which on
+Ubuntu defaults to `/usr/share/pixmaps/ubuntu-logo-text-dark.svg`. Section 10
+installs `extras/gdm/login-logo.svg` as `nordic-login-logo.svg` and repoints
+the key; `extras/gdm/login-logo-original.svg` is an untouched copy of the
+Ubuntu one for reference. Match its geometry if you replace it — `width="187"
+height="72"` over a `0 0 1039.44678 400` viewBox — so GDM lays it out the same.
+
+If you regenerate it with cairo, note that cairo already writes a `viewBox`.
+Adding another produces `Attribute viewBox redefined`, which is invalid XML;
+librsvg then refuses the whole document and the logo silently renders as
+nothing rather than erroring.
 
 The login screen is set through GDM's dconf profile. The stock profile chains
 only `user-db` and the packaged `file-db` — there is no `system-db`, so
@@ -224,6 +252,20 @@ in `/usr/share`, leaving the gdm3 package alone) adding `system-db:gdm`, then
 writes `/etc/dconf/db/gdm.d/10-nordic`. The background has to sit in
 `/usr/share/backgrounds`: the greeter runs as user `gdm` and cannot read
 `/home/<you>`.
+
+**Warp terminal** is section 11. `extras/warp/nordic.yaml` goes to
+`~/.local/share/warp-terminal/themes/`, and the theme's identifier is the file
+name — hence `[appearance.themes] theme = "nordic"` in `settings.toml`. The UI
+colours are Nordic's (accent `#8fbcbb`, the GTK selection colour) while the
+sixteen ANSI slots follow the canonical Nord mapping, so anything expecting
+Nord still renders correctly.
+
+`settings.toml` is edited as text, deliberately. Warp writes multi-line inline
+tables with trailing commas — TOML 1.1 draft syntax that Python's `tomllib`
+refuses outright, so `tomllib.load` fails on a perfectly valid Warp config. Do
+not "fix" this by switching to a TOML parser. Warp also rewrites the file from
+memory when it exits, so the installer only edits it when Warp is not running
+and otherwise tells you to use Settings > Appearance > Themes.
 
 **Google Chrome** (the deb, so it can read `~/.themes`) has two options. The
 cheap one is `chrome://settings/appearance` -> theme **GTK**, which picks up

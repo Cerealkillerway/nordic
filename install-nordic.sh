@@ -68,6 +68,20 @@ if core.get('themes') == ['ui-nordic'] or core.get('theme') == 'ui-nordic':
 PY
   done
 
+  step "Removing the Warp theme"
+  WARP_SETTINGS="$HOME/.config/warp-terminal/settings.toml"
+  rm -f "$HOME/.local/share/warp-terminal/themes/nordic.yaml"
+  if [ -f "$WARP_SETTINGS" ] && grep -q '^theme = "nordic"$' "$WARP_SETTINGS"; then
+    if pgrep -x warp >/dev/null 2>&1; then
+      note "Warp is running — pick another theme in Settings > Appearance"
+    else
+      # Drop just the key; Warp falls back to its default rather than leaving
+      # a dangling reference to a theme file we just deleted.
+      sed -i '/^theme = "nordic"$/d' "$WARP_SETTINGS"
+      note "removed the Nordic selection from settings.toml"
+    fi
+  fi
+
   step "Reverting the boot splash"
   if [ -e /usr/share/plymouth/themes/nordic/nordic.plymouth ]; then
     sudo update-alternatives --remove default.plymouth \
@@ -87,7 +101,8 @@ PY
         sudo rm -f "/etc/dconf/profile/$p"
       fi
     done
-    sudo rm -f /usr/share/backgrounds/nordic-login.png
+    sudo rm -f /usr/share/backgrounds/nordic-login.png \
+               /usr/share/pixmaps/nordic-login-logo.svg
     sudo dconf update 2>/dev/null
     note "login screen reverted to the packaged defaults"
   fi
@@ -461,6 +476,16 @@ else
        /usr/share/backgrounds/nordic-login.png
   note "background -> /usr/share/backgrounds/nordic-login.png"
 
+  # The badge under the password box. Stock is the Ubuntu wordmark at
+  # /usr/share/pixmaps/ubuntu-logo-text-dark.svg, pointed at by
+  # org.gnome.login-screen logo; a copy of it is kept in extras/gdm as
+  # login-logo-original.svg.
+  if [ -f "$REPO/extras/gdm/login-logo.svg" ]; then
+    sudo install -D -m 644 "$REPO/extras/gdm/login-logo.svg" \
+         /usr/share/pixmaps/nordic-login-logo.svg
+    note "vendor logo -> /usr/share/pixmaps/nordic-login-logo.svg"
+  fi
+
   for p in gdm Debian-gdm; do
     sudo install -d -m 755 /etc/dconf/profile
     printf 'user-db:user\nsystem-db:gdm\nfile-db:/var/lib/gdm3/greeter-dconf-defaults\n' \
@@ -478,11 +503,79 @@ background-size='cover'
 background-repeat='no-repeat'
 background-color='#2e3440'
 EOF
+
+  # Repoint the vendor logo only if one was actually installed above. Setting
+  # the key unconditionally would leave GDM referencing a file that is not
+  # there, and it renders nothing at all rather than falling back to Ubuntu's.
+  if [ -f /usr/share/pixmaps/nordic-login-logo.svg ]; then
+    printf "\n[org/gnome/login-screen]\nlogo='%s'\n" \
+           /usr/share/pixmaps/nordic-login-logo.svg \
+      | sudo tee -a /etc/dconf/db/gdm.d/10-nordic >/dev/null
+    note "vendor logo repointed at the Nordic one"
+  else
+    note "no Nordic logo installed — leaving the Ubuntu badge in place"
+  fi
   if sudo dconf update 2>/dev/null; then
     note "wrote /etc/dconf/db/gdm.d/10-nordic and rebuilt the db"
     note "visible at the next login screen (reboot, or restart gdm)"
   else
     note "dconf update failed — run 'sudo dconf update' yourself"
+  fi
+fi
+
+# ---------------------------------------------------------------------------
+#  11. Warp terminal
+# ---------------------------------------------------------------------------
+#  Warp reads custom themes from ~/.local/share/warp-terminal/themes and names
+#  them after the file, so nordic.yaml becomes theme = "nordic".
+#
+#  settings.toml is edited as text on purpose. Warp writes multi-line inline
+#  tables with trailing commas (TOML 1.1 draft), which Python's tomllib rejects
+#  outright — a parse-and-rewrite would fail on a perfectly good file, or worse,
+#  drop what it could not represent.
+# ---------------------------------------------------------------------------
+step "11. Warp terminal theme"
+WARP_DATA="$HOME/.local/share/warp-terminal"
+WARP_SETTINGS="$HOME/.config/warp-terminal/settings.toml"
+if [ ! -d "$WARP_DATA" ] && ! command -v warp-terminal >/dev/null 2>&1; then
+  note "Warp not installed — skipped"
+else
+  mkdir -p "$WARP_DATA/themes"
+  cp "$REPO/extras/warp/nordic.yaml" "$WARP_DATA/themes/nordic.yaml"
+  note "installed $WARP_DATA/themes/nordic.yaml"
+
+  if pgrep -x warp >/dev/null 2>&1; then
+    note "Warp is running — it rewrites settings.toml from memory on exit, so"
+    note "pick Nordic under Settings > Appearance > Themes (or quit and re-run)"
+  elif [ -f "$WARP_SETTINGS" ]; then
+    # Back up once, not on every run — otherwise the second run "backs up"
+    # our own output and the original is gone.
+    [ -f "$WARP_SETTINGS.nordic-backup" ] || cp "$WARP_SETTINGS" "$WARP_SETTINGS.nordic-backup"
+    python3 - "$WARP_SETTINGS" <<'PY'
+import re, sys
+path = sys.argv[1]
+src = open(path).read()
+want = [('system_theme', 'false'), ('theme', '"nordic"')]
+m = re.search(r'^\[appearance\.themes\]\s*$', src, re.M)
+if m:
+    start = m.end()
+    nxt = re.search(r'^\[', src[start:], re.M)
+    end = start + (nxt.start() if nxt else len(src) - start)
+    body = src[start:end]
+    for k, v in want:
+        if re.search(rf'^{k}\s*=', body, re.M):
+            body = re.sub(rf'^{k}\s*=.*$', f'{k} = {v}', body, flags=re.M)
+        else:
+            body = body.rstrip('\n') + f'\n{k} = {v}\n'
+    src = src[:start] + body + src[end:]
+else:
+    src = src.rstrip('\n') + '\n\n[appearance.themes]\n' + \
+          ''.join(f'{k} = {v}\n' for k, v in want)
+open(path, 'w').write(src)
+PY
+    note "selected Nordic in settings.toml (backup: settings.toml.nordic-backup)"
+  else
+    note "no settings.toml yet — pick Nordic under Settings > Appearance > Themes"
   fi
 fi
 

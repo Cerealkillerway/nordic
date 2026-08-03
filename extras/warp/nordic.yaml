@@ -1,0 +1,35 @@
+# Nordic — Warp terminal theme
+#
+# Warp reads custom themes from ~/.local/share/warp-terminal/themes on Linux.
+# The theme's identifier is the file name without the extension, which is what
+# goes into [appearance.themes] theme = "nordic" in settings.toml.
+#
+# The UI colours are Nordic's (accent #8fbcbb is the GTK theme's selection
+# colour, not upstream Nord's blue), while the sixteen ANSI slots follow the
+# canonical Nord terminal mapping so anything expecting Nord renders correctly.
+
+accent: '#8fbcbb'
+background: '#2e3440'
+foreground: '#d8dee9'
+cursor: '#8fbcbb'
+details: darker
+
+terminal_colors:
+  normal:
+    black: '#3b4252'
+    red: '#bf616a'
+    green: '#a3be8c'
+    yellow: '#ebcb8b'
+    blue: '#81a1c1'
+    magenta: '#b48ead'
+    cyan: '#88c0d0'
+    white: '#e5e9f0'
+  bright:
+    black: '#4c566a'
+    red: '#bf616a'
+    green: '#a3be8c'
+    yellow: '#ebcb8b'
+    blue: '#81a1c1'
+    magenta: '#b48ead'
+    cyan: '#8fbcbb'
+    white: '#eceff4'

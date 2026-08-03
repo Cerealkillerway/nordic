@@ -12,10 +12,12 @@ Outputs
     extras/plymouth/nordic/dot.png     one throbber dot, drawn six times
     extras/plymouth/nordic/field.png   entry box for the LUKS password prompt
     extras/gdm/nordic-login.png        login-screen background
+    extras/gdm/login-logo.svg          badge under the login password box
 
 Palette is transcribed from gtk-3.0/gtk.css — see PALETTE below.
 """
 import math
+import re
 import os
 
 import cairo
@@ -155,7 +157,11 @@ def login_background(w=2560, h=1440):
     # Watermark, pushed off to the right. GDM centres the login dialog, so a
     # centred mark sits directly behind the avatar and entry box and fights
     # them however faint it is.
-    snowflake(c, w * 0.78, h * 0.30, h * 0.36, rgb("teal", 0.055), width_ratio=0.03)
+    #
+    # Geometry is constrained: the mark's left arm reaches cx - r, and the
+    # dialog's right edge is about 0.59*w. Keep (cx - r) clear of that.
+    #   0.82*w - 0.32*h = 0.82*2560 - 0.32*1440 = 1638, vs a 1507 dialog edge.
+    snowflake(c, w * 0.82, h * 0.30, h * 0.32, rgb("teal", 0.055), width_ratio=0.03)
 
     # vignette
     vg = cairo.RadialGradient(w / 2, h / 2, h * 0.25, w / 2, h / 2, w * 0.72)
@@ -167,10 +173,75 @@ def login_background(w=2560, h=1440):
     write(s, "extras", "gdm", "nordic-login.png")
 
 
+# ---------------------------------------------------------------------------
+#  Login-screen vendor logo
+# ---------------------------------------------------------------------------
+def login_logo():
+    """Replacement for the Ubuntu badge GDM draws below the password box.
+
+    Geometry matches /usr/share/pixmaps/ubuntu-logo-text-dark.svg exactly —
+    187x72 with a 1039.44678x400 viewBox — so GDM lays it out identically.
+    The original is kept alongside as login-logo-original.svg.
+
+    The wordmark is converted to outlines with text_path() rather than left as
+    an SVG <text> element: the greeter runs as user `gdm` and there is no
+    guarantee about which fonts it can resolve, and a missing font would
+    silently fall back to something else or vanish.
+    """
+    VB_W, VB_H = 1039.44678, 400.0
+    path = os.path.join(REPO, "extras", "gdm", "login-logo.svg")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+
+    s = cairo.SVGSurface(path, VB_W, VB_H)
+    c = cairo.Context(s)
+
+    snowflake(c, 170, VB_H / 2, 150, rgb("teal"), width_ratio=0.09)
+
+    # Fit the wordmark to the space left of the viewBox edge rather than
+    # trusting a hardcoded size — the width depends on whichever font actually
+    # resolves, and at 230pt "nordic" in Ubuntu Regular overruns 1039 outright.
+    WORD = "nordic"
+    TEXT_X, PAD = 380.0, 40.0
+    avail = VB_W - TEXT_X - PAD
+
+    c.select_font_face("Ubuntu", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
+    c.set_font_size(230)
+    ext = c.text_extents(WORD)
+    c.set_font_size(230 * min(1.0, avail / ext.width))
+
+    # Optically centre on the viewBox using the inked extents, not the font
+    # metrics — "nordic" has no ascenders beyond the 'd' and no descenders.
+    ext = c.text_extents(WORD)
+    c.set_source_rgba(*rgb("fg"))
+    c.move_to(TEXT_X - ext.x_bearing, VB_H / 2 - ext.y_bearing - ext.height / 2)
+    c.text_path(WORD)
+    c.fill()
+
+    s.finish()
+
+    # cairo writes the surface size as the width/height, so the file would
+    # render at 1039x400 instead of the 187x72 the original declares. Rewrite
+    # just those two attributes.
+    #
+    # Only add a viewBox if cairo did not already emit one — appending a second
+    # makes the document invalid XML ("Attribute viewBox redefined") and
+    # librsvg refuses to render it at all, which shows up as a blank logo
+    # rather than an error.
+    svg = open(path).read()
+    tag = re.search(r"<svg[^>]*>", svg).group(0)
+    patched = re.sub(r'\swidth="[^"]*"', ' width="187"', tag, count=1)
+    patched = re.sub(r'\sheight="[^"]*"', ' height="72"', patched, count=1)
+    if "viewBox" not in patched:
+        patched = patched[:-1] + f' viewBox="0 0 {VB_W} {VB_H}">'
+    open(path, "w").write(svg.replace(tag, patched, 1))
+    print("  %-44s %s" % ("extras/gdm/login-logo.svg", "187x72"))
+
+
 if __name__ == "__main__":
     print("rendering boot assets from the Nordic palette:")
     plymouth_logo()
     plymouth_dot()
     plymouth_field()
     login_background()
+    login_logo()
     print("done")
