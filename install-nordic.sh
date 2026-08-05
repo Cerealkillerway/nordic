@@ -34,6 +34,14 @@ SASS_VER="1.77.8"
 # Override for one run with:  NORDIC_LOGIN_BG=nordic-login.png ./install-nordic.sh
 LOGIN_BG="${NORDIC_LOGIN_BG:-nordic-login-jormungandr.png}"
 
+# Desktop wallpaper, from extras/wallpapers/. Set to "" to leave the current
+# wallpaper alone:  NORDIC_DESKTOP_BG= ./install-nordic.sh
+DESKTOP_BG="${NORDIC_DESKTOP_BG-nordic-dragon.jpg}"
+
+# Where the installer remembers things it overwrote, so --uninstall can put
+# them back.
+STATE_DIR="$HOME/.local/state/nordic-theme"
+
 step() { echo; echo "==> $*"; }
 note() { echo "    ~ $*"; }
 
@@ -74,6 +82,22 @@ if core.get('themes') == ['ui-nordic'] or core.get('theme') == 'ui-nordic':
         json.dump(d, f, indent=2)
 PY
   done
+
+  step "Restoring the previous desktop wallpaper"
+  if [ -f "$STATE_DIR/desktop-background.prev" ]; then
+    # Three lines, in the order they were written: uri, uri-dark, options.
+    { read -r prev_uri; read -r prev_dark; read -r prev_opts; } \
+      < "$STATE_DIR/desktop-background.prev"
+    for pair in "picture-uri $prev_uri" "picture-uri-dark $prev_dark" \
+                "picture-options $prev_opts"; do
+      k="${pair%% *}"; v="${pair#* }"
+      [ -n "$v" ] && GSETTINGS_SCHEMA_DIR=/usr/share/glib-2.0/schemas \
+        gsettings set org.gnome.desktop.background "$k" "$v" 2>/dev/null
+    done
+    rm -f "$STATE_DIR/desktop-background.prev"
+    note "restored the wallpaper that was set before Nordic"
+  fi
+  rm -f "$HOME/.local/share/backgrounds/nordic-dragon.jpg"
 
   step "Removing the Warp theme"
   WARP_SETTINGS="$HOME/.config/warp-terminal/settings.toml"
@@ -588,6 +612,52 @@ PY
   else
     note "no settings.toml yet — pick Nordic under Settings > Appearance > Themes"
   fi
+fi
+
+# ---------------------------------------------------------------------------
+#  12. Desktop wallpaper
+# ---------------------------------------------------------------------------
+#  Per-user, so no root needed — the file goes in ~/.local/share/backgrounds
+#  and gsettings points at it. The previous wallpaper is remembered once so
+#  --uninstall can restore it.
+#
+#  GSETTINGS_SCHEMA_DIR is pinned for the same reason as in section 4: run from
+#  a terminal inside a snap, gsettings otherwise resolves against the snap's
+#  own bundled schemas.
+# ---------------------------------------------------------------------------
+step "12. Desktop wallpaper"
+if [ -z "$DESKTOP_BG" ]; then
+  note "NORDIC_DESKTOP_BG empty — leaving the current wallpaper alone"
+elif [ ! -f "$REPO/extras/wallpapers/$DESKTOP_BG" ]; then
+  note "extras/wallpapers/$DESKTOP_BG not found — skipped"
+else
+  WALL_DIR="$HOME/.local/share/backgrounds"
+  mkdir -p "$WALL_DIR" "$STATE_DIR"
+  install -m 644 "$REPO/extras/wallpapers/$DESKTOP_BG" "$WALL_DIR/$DESKTOP_BG"
+  WALL_URI="file://$WALL_DIR/$DESKTOP_BG"
+
+  # Remember what was there first — but only the first time, or re-running
+  # would record our own wallpaper as the thing to restore.
+  if [ ! -f "$STATE_DIR/desktop-background.prev" ]; then
+    {
+      GSETTINGS_SCHEMA_DIR=/usr/share/glib-2.0/schemas \
+        gsettings get org.gnome.desktop.background picture-uri
+      GSETTINGS_SCHEMA_DIR=/usr/share/glib-2.0/schemas \
+        gsettings get org.gnome.desktop.background picture-uri-dark
+      GSETTINGS_SCHEMA_DIR=/usr/share/glib-2.0/schemas \
+        gsettings get org.gnome.desktop.background picture-options
+    } > "$STATE_DIR/desktop-background.prev" 2>/dev/null
+    note "remembered the previous wallpaper for --uninstall"
+  fi
+
+  for k in picture-uri picture-uri-dark; do
+    GSETTINGS_SCHEMA_DIR=/usr/share/glib-2.0/schemas \
+      gsettings set org.gnome.desktop.background "$k" "$WALL_URI" 2>/dev/null
+  done
+  GSETTINGS_SCHEMA_DIR=/usr/share/glib-2.0/schemas \
+    gsettings set org.gnome.desktop.background picture-options 'zoom' 2>/dev/null
+  note "wallpaper -> $WALL_DIR/$DESKTOP_BG"
+  note "the lock screen follows it automatically — GNOME blurs this same image"
 fi
 
 echo

@@ -274,6 +274,22 @@ a blob, a bent pipe and a top hat — the method is good for gradients, hatching
 and line-work and bad at representational art. Recolouring real artwork is the
 approach that works.
 
+**The desktop wallpaper** is section 12 — `extras/wallpapers/nordic-dragon.jpg`
+copied to `~/.local/share/backgrounds` with `org.gnome.desktop.background`
+pointed at it. Per-user, so no root involved. Both `picture-uri` and
+`picture-uri-dark` are set, or the wallpaper would revert whenever the session
+switched light/dark. The lock screen needs nothing: GNOME blurs the desktop
+wallpaper rather than reading `org.gnome.desktop.screensaver`, which modern
+Shell ignores.
+
+Pick another with `DESKTOP_BG` at the top of the script, or skip the step
+entirely with `NORDIC_DESKTOP_BG= ./install-nordic.sh` — note that uses `${x-…}`
+rather than `${x:-…}`, so an empty value means "leave my wallpaper alone"
+instead of falling back to the default. The wallpaper that was set beforehand
+is recorded once in `~/.local/state/nordic-theme/desktop-background.prev` and
+put back by `--uninstall`. Recording it *once* matters: re-running the
+installer would otherwise save Nordic's own wallpaper as the thing to restore.
+
 The badge below the password box is `org.gnome.login-screen logo`, which on
 Ubuntu defaults to `/usr/share/pixmaps/ubuntu-logo-text-dark.svg`. Section 10
 installs `extras/gdm/login-logo.svg` as `nordic-login-logo.svg` and repoints
